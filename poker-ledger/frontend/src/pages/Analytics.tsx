@@ -38,11 +38,21 @@ export default function Analytics() {
     ? Math.round((analytics.winningSessions / analytics.totalSessions) * 100)
     : 0;
 
-  const chartData =
-    analytics?.monthlyData.map((d) => ({
-      month: d.month,
-      profit: d.profit,
-    })) || [];
+  const [timeframe, setTimeframe] = useState<'monthly' | 'weekly' | 'yearly'>('monthly');
+
+  const getChartData = () => {
+    if (!analytics) return [];
+
+    switch (timeframe) {
+      case 'weekly':
+        return analytics.weeklyData.map(d => ({ name: d.week, profit: d.profit })).reverse();
+      case 'yearly':
+        return analytics.yearlyData.map(d => ({ name: d.year, profit: d.profit })).reverse();
+      case 'monthly':
+      default:
+        return analytics.monthlyData.map(d => ({ name: d.month, profit: d.profit })).reverse();
+    }
+  };
 
   if (isLoading) {
     return (
@@ -66,17 +76,15 @@ export default function Analytics() {
               <div>
                 <p className="text-gray-400 text-sm mb-1">Total Profit/Loss</p>
                 <p
-                  className={`text-3xl font-bold ${
-                    (analytics?.totalProfit || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
-                  }`}
+                  className={`text-3xl font-bold ${(analytics?.totalProfit || 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                    }`}
                 >
                   {(analytics?.totalProfit || 0) >= 0 ? '+' : ''}${analytics?.totalProfit || 0}
                 </p>
               </div>
               <div
-                className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                  (analytics?.totalProfit || 0) >= 0 ? 'bg-emerald-500/20' : 'bg-red-500/20'
-                }`}
+                className={`w-12 h-12 rounded-full flex items-center justify-center ${(analytics?.totalProfit || 0) >= 0 ? 'bg-emerald-500/20' : 'bg-red-500/20'
+                  }`}
               >
                 {(analytics?.totalProfit || 0) >= 0 ? (
                   <TrendingUp className="w-6 h-6 text-emerald-400" />
@@ -124,66 +132,106 @@ export default function Analytics() {
           </div>
         </div>
 
-        {chartData.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-            <div className="casino-card p-6">
-              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-emerald-400" />
-                Monthly Profit/Loss
-              </h2>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="month" stroke="#666" />
-                    <YAxis stroke="#666" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#1a1a1a',
-                        border: '1px solid #333',
-                        borderRadius: '8px',
-                      }}
-                      labelStyle={{ color: '#9ca3af' }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="profit"
-                      stroke="#10b981"
-                      strokeWidth={3}
-                      dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
-                      activeDot={{ r: 6, fill: '#f59e0b' }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+        {analytics && (
+          <div className="mb-8">
+            <div className="flex gap-4 mb-6">
+              <button
+                onClick={() => setTimeframe('monthly')}
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${timeframe === 'monthly'
+                  ? 'bg-amber-500 text-black'
+                  : 'bg-[#0a0a0a] text-gray-400 border border-[#333] hover:border-amber-500/50'
+                  }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setTimeframe('weekly')}
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${timeframe === 'weekly'
+                  ? 'bg-amber-500 text-black'
+                  : 'bg-[#0a0a0a] text-gray-400 border border-[#333] hover:border-amber-500/50'
+                  }`}
+              >
+                Weekly
+              </button>
+              <button
+                onClick={() => setTimeframe('yearly')}
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${timeframe === 'yearly'
+                  ? 'bg-amber-500 text-black'
+                  : 'bg-[#0a0a0a] text-gray-400 border border-[#333] hover:border-amber-500/50'
+                  }`}
+              >
+                Yearly
+              </button>
             </div>
 
-            <div className="casino-card p-6">
-              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-amber-400" />
-                Monthly Performance
-              </h2>
-              <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="month" stroke="#666" />
-                    <YAxis stroke="#666" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#1a1a1a',
-                        border: '1px solid #333',
-                        borderRadius: '8px',
-                      }}
-                      labelStyle={{ color: '#9ca3af' }}
-                    />
-                    <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
-                      {chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? '#10b981' : '#ef4444'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="casino-card p-6">
+                <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-emerald-400" />
+                  {timeframe.charAt(0).toUpperCase() + timeframe.slice(1)} Profit/Loss
+                </h2>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={getChartData()}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                      <XAxis
+                        dataKey="name"
+                        stroke="#666"
+                        tickFormatter={(value) => value.toString().slice(-2)}
+                      />
+                      <YAxis stroke="#666" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#1a1a1a',
+                          border: '1px solid #333',
+                          borderRadius: '8px',
+                        }}
+                        labelStyle={{ color: '#9ca3af' }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="profit"
+                        stroke="#10b981"
+                        strokeWidth={3}
+                        dot={{ fill: '#10b981', strokeWidth: 2, r: 4 }}
+                        activeDot={{ r: 6, fill: '#f59e0b' }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="casino-card p-6">
+                <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-amber-400" />
+                  {timeframe.charAt(0).toUpperCase() + timeframe.slice(1)} Performance
+                </h2>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={getChartData()}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                      <XAxis
+                        dataKey="name"
+                        stroke="#666"
+                        tickFormatter={(value) => value.toString().slice(-2)}
+                      />
+                      <YAxis stroke="#666" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#1a1a1a',
+                          border: '1px solid #333',
+                          borderRadius: '8px',
+                        }}
+                        labelStyle={{ color: '#9ca3af' }}
+                      />
+                      <Bar dataKey="profit" radius={[4, 4, 0, 0]}>
+                        {getChartData().map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? '#10b981' : '#ef4444'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
           </div>

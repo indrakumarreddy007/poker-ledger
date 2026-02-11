@@ -13,6 +13,9 @@ export default {
           red: '#ef4444',
           black: '#0a0a0a',
           charcoal: '#1a1a1a',
+          blue: '#3b82f6',
+          purple: '#8b5cf6',
+          surface: '#18181b', // zinc-900
         }
       },
       animation: {

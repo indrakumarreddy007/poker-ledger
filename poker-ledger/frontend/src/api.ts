@@ -14,7 +14,7 @@ async function fetchApi<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = localStorage.getItem('token');
-  
+
   const response = await fetch(`${API_URL}/api${endpoint}`, {
     ...options,
     headers: {
@@ -47,6 +47,12 @@ export const authApi = {
       body: JSON.stringify({ email, password }),
     }),
 
+  googleLogin: (token: string) =>
+    fetchApi<{ token: string; user: User }>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
+
   getMe: () =>
     fetchApi<{ user: User }>('/auth/me'),
 
@@ -77,9 +83,10 @@ export const sessionsApi = {
       body: JSON.stringify({ joinCode }),
     }),
 
-  close: (id: string) =>
+  close: (id: string, finalStacks?: Record<string, number>) =>
     fetchApi<void>(`/sessions/${id}/close`, {
       method: 'POST',
+      body: JSON.stringify({ finalStacks }),
     }),
 
   transferAdmin: (id: string, newAdminId: string) =>

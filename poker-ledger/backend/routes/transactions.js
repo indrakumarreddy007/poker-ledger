@@ -299,13 +299,39 @@ router.get('/analytics', authenticateToken, async (req, res) => {
     // Get monthly data
     const monthlyData = await dbAsync.all(
       `SELECT 
-        strftime('%Y-%m', t.approved_at) as month,
+        to_char(t.approved_at, 'YYYY-MM') as month,
         SUM(CASE WHEN t.type = 'cashout' THEN t.amount ELSE -t.amount END) as profit
        FROM transactions t
        WHERE t.player_id = ? AND t.status = 'approved'
-       GROUP BY strftime('%Y-%m', t.approved_at)
+       GROUP BY to_char(t.approved_at, 'YYYY-MM')
        ORDER BY month DESC
        LIMIT 12`,
+      [userId]
+    );
+
+    // Get weekly data
+    const weeklyData = await dbAsync.all(
+      `SELECT 
+        to_char(t.approved_at, 'IYYY-IW') as week,
+        SUM(CASE WHEN t.type = 'cashout' THEN t.amount ELSE -t.amount END) as profit
+       FROM transactions t
+       WHERE t.player_id = ? AND t.status = 'approved'
+       GROUP BY to_char(t.approved_at, 'IYYY-IW')
+       ORDER BY week DESC
+       LIMIT 12`,
+      [userId]
+    );
+
+    // Get yearly data
+    const yearlyData = await dbAsync.all(
+      `SELECT 
+        to_char(t.approved_at, 'YYYY') as year,
+        SUM(CASE WHEN t.type = 'cashout' THEN t.amount ELSE -t.amount END) as profit
+       FROM transactions t
+       WHERE t.player_id = ? AND t.status = 'approved'
+       GROUP BY to_char(t.approved_at, 'YYYY')
+       ORDER BY year DESC
+       LIMIT 5`,
       [userId]
     );
 
@@ -315,7 +341,9 @@ router.get('/analytics', authenticateToken, async (req, res) => {
       winningSessions: sessionStats?.winning_sessions || 0,
       biggestWin: extremes?.biggest_win || 0,
       biggestLoss: extremes?.biggest_loss || 0,
-      monthlyData
+      monthlyData,
+      weeklyData,
+      yearlyData
     });
   } catch (error) {
     console.error('Get analytics error:', error);

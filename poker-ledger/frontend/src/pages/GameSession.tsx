@@ -101,16 +101,40 @@ export default function GameSession() {
     }
   };
 
-  const handleClose = async () => {
-    if (confirm('Are you sure you want to close this session?')) {
-      try {
-        await sessionsApi.close(id!);
-        navigate('/sessions');
-      } catch (err: any) {
-        setError(err.message || 'Failed to close session');
-      }
+  // End Session State
+  const [showEndSession, setShowEndSession] = useState(false);
+  const [finalStacks, setFinalStacks] = useState<Record<string, number>>({});
+  const [endSessionError, setEndSessionError] = useState('');
+
+  const calculateTotals = () => {
+    let totalBuyin = 0;
+    let totalStack = 0;
+    players.forEach(p => {
+      totalBuyin += p.total_buyin;
+      totalStack += (finalStacks[p.user_id] || 0);
+    });
+    return { totalBuyin, totalStack, diff: totalStack - totalBuyin };
+  };
+
+  const handleEndSessionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEndSessionError('');
+
+    const { diff } = calculateTotals();
+    if (diff !== 0) {
+      setEndSessionError(`Mismatch! Chips on table (${calculateTotals().totalStack}) must equal Total Buy-ins (${calculateTotals().totalBuyin}). Difference: ${diff}`);
+      return;
+    }
+
+    try {
+      await sessionsApi.close(id!, finalStacks);
+      navigate('/sessions');
+    } catch (err: any) {
+      setEndSessionError(err.message || 'Failed to close session');
     }
   };
+
+
 
   if (isLoading) {
     return (
@@ -170,11 +194,19 @@ export default function GameSession() {
                 Pass Dealer
               </button>
               <button
-                onClick={handleClose}
+                onClick={() => {
+                  // Initialize final stacks with current stacks? or 0? 
+                  // Better to init with 0 or current_stack if tracked, but we track manual updates.
+                  // Let's init with empty or 0.
+                  const initial: Record<string, number> = {};
+                  players.forEach(p => initial[p.user_id] = 0);
+                  setFinalStacks(initial);
+                  setShowEndSession(true);
+                }}
                 className="px-4 py-2 border border-red-500/50 text-red-400 rounded-lg hover:bg-red-500/10"
               >
                 <LogOut className="w-4 h-4 inline mr-2" />
-                Close Session
+                End Session
               </button>
             </div>
           )}
@@ -307,8 +339,8 @@ export default function GameSession() {
                     <p className="text-sm text-gray-400 mb-1">Profit/Loss</p>
                     <p
                       className={`text-2xl font-bold ${currentPlayer.current_stack - currentPlayer.total_buyin >= 0
-                          ? 'text-emerald-400'
-                          : 'text-red-400'
+                        ? 'text-emerald-400'
+                        : 'text-red-400'
                         }`}
                     >
                       {currentPlayer.current_stack - currentPlayer.total_buyin >= 0 ? '+' : ''}
@@ -340,10 +372,10 @@ export default function GameSession() {
 
         {showBuyIn && (
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm"
             onClick={() => setShowBuyIn(false)}
           >
-            <div className="casino-card p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="casino-card p-6 w-full max-w-md border border-amber-500" onClick={(e) => e.stopPropagation()}>
               <h2 className="text-2xl font-bold text-white mb-4">Request Buy-in</h2>
               {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
               <form onSubmit={handleBuyIn}>
@@ -376,10 +408,10 @@ export default function GameSession() {
 
         {showCashOut && (
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm"
             onClick={() => setShowCashOut(false)}
           >
-            <div className="casino-card p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="casino-card p-6 w-full max-w-md border border-emerald-500" onClick={(e) => e.stopPropagation()}>
               <h2 className="text-2xl font-bold text-white mb-4">Cash Out</h2>
               {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
               <form onSubmit={handleCashOut}>
@@ -410,9 +442,92 @@ export default function GameSession() {
           </div>
         )}
 
+        {/* End Session Modal */}
+        {showEndSession && (
+          <div
+            className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 backdrop-blur-sm"
+            onClick={() => setShowEndSession(false)}
+          >
+            <div className="casino-card p-6 w-full max-w-2xl border border-red-500 overflow-y-auto max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-2xl font-bold text-white mb-2">End Session & Settle</h2>
+              <p className="text-gray-400 mb-6">Enter the final chip count for each player. Total must match total buy-ins.</p>
+
+              {endSessionError && (
+                <div className="mb-4 p-3 bg-red-500/20 border border-red-500 text-red-200 rounded text-sm break-words">
+                  {endSessionError}
+                </div>
+              )}
+
+              <form onSubmit={handleEndSessionSubmit}>
+                <div className="space-y-4 mb-6">
+                  {players.map(player => (
+                    <div key={player.user_id} className="flex items-center justify-between p-3 bg-black/40 rounded-lg border border-white/10 hover:border-amber-500/30 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white font-bold">
+                          {player.username[0]}
+                        </div>
+                        <div>
+                          <div className="text-white font-medium">{player.username}</div>
+                          <div className="text-xs text-gray-500">Buy-in: ${player.total_buyin}</div>
+                        </div>
+                      </div>
+                      <div>
+                        <input
+                          type="number"
+                          min="0"
+                          className="bg-black border border-gray-700 text-white p-2 rounded w-32 text-right focus:border-amber-500 outline-none"
+                          value={finalStacks[player.user_id] ?? ''}
+                          onChange={(e) => setFinalStacks({ ...finalStacks, [player.user_id]: parseInt(e.target.value) || 0 })}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-black/50 p-4 rounded-lg mb-6 border border-white/10">
+                  <div className="flex justify-between text-sm text-gray-400 mb-1">
+                    <span>Total Buy-ins:</span>
+                    <span>${calculateTotals().totalBuyin}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-gray-400 mb-1">
+                    <span>Chips on Table:</span>
+                    <span className={calculateTotals().diff !== 0 ? 'text-red-400' : 'text-emerald-400'}>
+                      ${calculateTotals().totalStack}
+                    </span>
+                  </div>
+                  <div className="flex justify-between font-bold text-white border-t border-white/10 pt-2 mt-2">
+                    <span>Difference:</span>
+                    <span className={calculateTotals().diff !== 0 ? 'text-red-500' : 'text-emerald-500'}>
+                      {calculateTotals().diff > 0 ? '+' : ''}{calculateTotals().diff}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowEndSession(false)}
+                    className="flex-1 px-4 py-3 border border-[#333] text-white rounded-lg hover:bg-white/5 font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg font-bold hover:from-red-500 hover:to-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-red-900/20"
+                    disabled={calculateTotals().diff !== 0}
+                  >
+                    Settle & Close
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {showTransfer && (
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm"
             onClick={() => setShowTransfer(false)}
           >
             <div className="casino-card p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>

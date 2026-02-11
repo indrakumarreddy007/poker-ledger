@@ -50,4 +50,6 @@ export interface AnalyticsData {
   biggestWin: number;
   biggestLoss: number;
   monthlyData: { month: string; profit: number }[];
+  weeklyData: { week: string; profit: number }[];
+  yearlyData: { year: string; profit: number }[];
 }

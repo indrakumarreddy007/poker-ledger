@@ -171,6 +171,7 @@ router.post('/join', authenticateToken, async (req, res) => {
 router.post('/:id/close', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+    const { finalStacks } = req.body; // Object: { userId: amount }
     const userId = req.user.id;
 
     // Check if user is admin
@@ -181,6 +182,50 @@ router.post('/:id/close', authenticateToken, async (req, res) => {
 
     if (!session) {
       return res.status(403).json({ error: 'Only admin can close session' });
+    }
+
+    if (finalStacks) {
+      // Fetch all players to validate totals
+      const players = await dbAsync.all('SELECT * FROM session_players WHERE session_id = ?', [id]);
+
+      let totalBuyin = 0;
+      let totalStack = 0;
+
+      // Calculate totals
+      for (const player of players) {
+        totalBuyin += parseInt(player.total_buyin || 0);
+        const stack = parseInt(finalStacks[player.user_id] || 0);
+        totalStack += stack;
+      }
+
+      // Check if totals match (chips on table must equal chips bought in)
+      if (totalBuyin !== totalStack) {
+        return res.status(400).json({
+          error: 'Financial verification failed. Total chips on table must equal total buy-ins.',
+          totalBuyin,
+          totalStack,
+          difference: totalStack - totalBuyin
+        });
+      }
+
+      // Process results
+      for (const player of players) {
+        const stack = parseInt(finalStacks[player.user_id] || 0);
+
+        // Update session_player
+        await dbAsync.run(
+          'UPDATE session_players SET current_stack = ?, cash_out_amount = ? WHERE session_id = ? AND user_id = ?',
+          [stack, stack, id, player.user_id]
+        );
+
+        // Create cashout transaction for record keeping
+        const transactionId = uuidv4();
+        await dbAsync.run(
+          `INSERT INTO transactions (id, session_id, player_id, amount, type, status, approved_at, approved_by)
+           VALUES (?, ?, ?, ?, 'cashout', 'approved', CURRENT_TIMESTAMP, ?)`,
+          [transactionId, id, player.user_id, stack, userId]
+        );
+      }
     }
 
     await dbAsync.run(

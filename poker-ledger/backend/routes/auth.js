@@ -64,6 +64,79 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// Google Login
+const { OAuth2Client } = require('google-auth-library');
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+router.post('/google', async (req, res) => {
+  try {
+    const { token: googleToken } = req.body;
+
+    if (!googleToken) {
+      return res.status(400).json({ error: 'Google token is required' });
+    }
+
+    // Verify Google Token
+    const ticket = await client.verifyIdToken({
+      idToken: googleToken,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+    const payload = ticket.getPayload();
+    const { email, name, sub: googleId, picture } = payload;
+
+    // Check if user exists by email
+    let user = await dbAsync.get('SELECT * FROM users WHERE email = ?', [email]);
+
+    if (user) {
+      // Update google_id if not set
+      if (!user.google_id) {
+        await dbAsync.run(
+          'UPDATE users SET google_id = ?, avatar_url = COALESCE(avatar_url, ?) WHERE id = ?',
+          [googleId, picture, user.id]
+        );
+      }
+    } else {
+      // Create new user
+      const userId = uuidv4();
+      // Generate a unique username if name is taken (simple logic)
+      // For now preventing duplicates by appending digits if needed could be complex, 
+      // using simple timestamp suffix for collision avoidance
+      const baseUsername = name.replace(/\s+/g, '').toLowerCase();
+      let username = baseUsername;
+
+      const existingUsername = await dbAsync.get('SELECT id FROM users WHERE username = ?', [username]);
+      if (existingUsername) {
+        username = `${baseUsername}${Math.floor(Math.random() * 10000)}`;
+      }
+
+      await dbAsync.run(
+        'INSERT INTO users (id, email, username, google_id, avatar_url) VALUES (?, ?, ?, ?, ?)',
+        [userId, email, username, googleId, picture]
+      );
+
+      user = { id: userId, email, username, avatar_url: picture };
+    }
+
+    // Generate JWT
+    const token = generateToken(user.id);
+
+    res.json({
+      message: 'Google login successful',
+      token,
+      user: {
+        id: user.id || user.id, // ensure id is present
+        email: user.email,
+        username: user.username,
+        avatar_url: user.avatar_url
+      }
+    });
+
+  } catch (error) {
+    console.error('Google login error:', error);
+    res.status(500).json({ error: 'Failed to verify Google token' });
+  }
+});
+
 // Login user
 router.post('/login', async (req, res) => {
   try {
