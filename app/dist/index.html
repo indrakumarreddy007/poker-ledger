@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poker Ledger - Track Your Poker Sessions</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body {
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
+      min-height: 100vh;
+    }
+    .casino-card {
+      background: linear-gradient(135deg, #1a1a1a 0%, #0f0f0f 100%);
+      border: 1px solid #333;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    .btn-gold {
+      background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+      color: #000;
+      font-weight: 700;
+      padding: 12px 24px;
+      border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+      transition: all 0.3s ease;
+    }
+    .btn-gold:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(245, 158, 11, 0.6);
+    }
+    .btn-green {
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+      color: #fff;
+      font-weight: 700;
+      padding: 12px 24px;
+      border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+      transition: all 0.3s ease;
+    }
+    .btn-green:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+    }
+    .glow-gold {
+      box-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+    }
+    .animate-float {
+      animation: float 3s ease-in-out infinite;
+    }
+    .animate-pulse-glow {
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(5deg); }
+    }
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.5); }
+      50% { box-shadow: 0 0 30px rgba(245, 158, 11, 0.8); }
+    }
+    .floating-chip {
+      position: fixed;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 3px solid;
+      opacity: 0.1;
+      pointer-events: none;
+      animation: float-up 15s linear infinite;
+    }
+    @keyframes float-up {
+      0% { transform: translateY(100vh) rotate(0deg); }
+      100% { transform: translateY(-100px) rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="text-white">
+  <div id="root"></div>
+  
+  <!-- Floating Chips Background -->
+  <div class="floating-chip" style="left: 10%; border-color: #f59e0b; animation-delay: 0s;">♠</div>
+  <div class="floating-chip" style="left: 30%; border-color: #ef4444; animation-delay: 3s;">♥</div>
+  <div class="floating-chip" style="left: 50%; border-color: #10b981; animation-delay: 6s;">♣</div>
+  <div class="floating-chip" style="left: 70%; border-color: #3b82f6; animation-delay: 9s;">♦</div>
+  <div class="floating-chip" style="left: 90%; border-color: #f59e0b; animation-delay: 12s;">♠</div>
+
+  <script type="text/babel">
+    const { useState, useEffect, createContext, useContext } = React;
+
+    // Mock Data
+    const mockUser = {
+      id: 'user-1',
+      email: 'player@poker.com',
+      username: 'HighRoller',
+      avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=HighRoller'
+    };
+
+    const mockSessions = [
+      { id: 'session-1', name: 'Friday Night Poker', created_at: '2024-12-01T19:00:00Z', status: 'active', current_admin_id: 'user-1', join_code: 'POKER123', created_by: 'user-1' },
+      { id: 'session-2', name: 'Weekend Tournament', created_at: '2024-11-25T18:00:00Z', status: 'closed', current_admin_id: 'user-2', join_code: 'TOURNEY456', created_by: 'user-2' }
+    ];
+
+    const mockPlayers = [
+      { session_id: 'session-1', user_id: 'user-1', username: 'HighRoller', total_buyin: 500, current_stack: 750, cash_out_amount: null, is_admin: true },
+      { session_id: 'session-1', user_id: 'user-2', username: 'MikeTheShark', total_buyin: 300, current_stack: 250, cash_out_amount: null, is_admin: false },
+      { session_id: 'session-1', user_id: 'user-3', username: 'SarahBluffs', total_buyin: 200, current_stack: 400, cash_out_amount: null, is_admin: false }
+    ];
+
+    const mockTransactions = [
+      { id: 'txn-1', session_id: 'session-1', player_id: 'user-2', username: 'MikeTheShark', amount: 100, type: 'buyin', status: 'pending', created_at: '2024-12-01T19:30:00Z' }
+    ];
+
+    const mockHistory = [
+      { id: 'session-2', name: 'Weekend Tournament', date: '2024-11-25', profit: 420 },
+      { id: 'session-3', name: 'Tuesday Cash Game', date: '2024-11-18', profit: -150 },
+      { id: 'session-4', name: 'Friday Night Poker', date: '2024-11-11', profit: 280 }
+    ];
+
+    // Auth Context
+    const AuthContext = createContext(null);
+    
+    function AuthProvider({ children }) {
+      const [user, setUser] = useState(null);
+      const [isLoading, setIsLoading] = useState(true);
+
+      useEffect(() => {
+        const stored = localStorage.getItem('pokerLedgerUser');
+        if (stored) setUser(JSON.parse(stored));
+        setIsLoading(false);
+      }, []);
+
+      const login = async (email, password) => {
+        setIsLoading(true);
+        await new Promise(r => setTimeout(r, 500));
+        const loggedInUser = { ...mockUser, email };
+        setUser(loggedInUser);
+        localStorage.setItem('pokerLedgerUser', JSON.stringify(loggedInUser));
+        setIsLoading(false);
+      };
+
+      const register = async (email, username, password) => {
+        setIsLoading(true);
+        await new Promise(r => setTimeout(r, 500));
+        const newUser = { id: `user-${Date.now()}`, email, username, avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}` };
+        setUser(newUser);
+        localStorage.setItem('pokerLedgerUser', JSON.stringify(newUser));
+        setIsLoading(false);
+      };
+
+      const logout = () => {
+        setUser(null);
+        localStorage.removeItem('pokerLedgerUser');
+      };
+
+      return (
+        <AuthContext.Provider value={{ user, isLoading, login, register, logout, isAuthenticated: !!user }}>
+          {children}
+        </AuthContext.Provider>
+      );
+    }
+
+    function useAuth() {
+      return useContext(AuthContext);
+    }
+
+    // Icons
+    function Icon({ name, className = "w-5 h-5" }) {
+      const icons = {
+        crown: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg>,
+        dashboard: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>,
+        users: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+        chart: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>,
+        logout: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+        trendingUp: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+        trendingDown: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>,
+        calendar: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+        dollar: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+        plus: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+        arrowRight: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>,
+        trophy: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>,
+        target: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
+        mail: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>,
+        lock: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
+        user: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+        eye: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+        eyeOff: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
+        check: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>,
+        copy: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
+        login: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>,
+        x: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+        rotate: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>,
+        alert: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+        arrowLeft: <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+      };
+      return icons[name] || null;
+    }
+
+    // Navigation
+    function Navigation({ currentView, setView }) {
+      const { user, logout } = useAuth();
+      
+      const navItems = [
+        { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
+        { id: 'sessions', label: 'Sessions', icon: 'users' },
+        { id: 'analytics', label: 'Analytics', icon: 'chart' }
+      ];
+
+      return (
+        <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0a]/90 backdrop-blur-md border-b border-[#333]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('dashboard')}>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-yellow-400 flex items-center justify-center">
+                  <Icon name="crown" className="w-6 h-6 text-black" />
+                </div>
+                <span className="text-xl font-bold bg-gradient-to-r from-amber-400 to-yellow-300 bg-clip-text text-transparent">
+                  Poker Ledger
+                </span>
+              </div>
+
+              <div className="hidden md:flex items-center gap-1">
+                {navItems.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setView(item.id)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
+                      currentView === item.id
+                        ? 'bg-amber-500/20 text-amber-400'
+                        : 'text-gray-400 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <Icon name={item.icon} className="w-5 h-5" />
+                    <span className="font-medium">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-4">
+                {user && (
+                  <>
+                    <div className="hidden sm:flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center overflow-hidden">
+                        <img src={user.avatar_url} alt={user.username} className="w-full h-full object-cover" />
+                      </div>
+                      <span className="text-sm font-medium text-gray-300">{user.username}</span>
+                    </div>
+                    <button
+                      onClick={logout}
+                      className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                    >
+                      <Icon name="logout" className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="md:hidden flex justify-around py-2 border-t border-[#333]">
+            {navItems.map(item => (
+              <button
+                key={item.id}
+                onClick={() => setView(item.id)}
+                className={`flex flex-col items-center gap-1 px-4 py-2 rounded-lg ${
+                  currentView === item.id ? 'text-amber-400' : 'text-gray-400'
+                }`}
+              >
+                <Icon name={item.icon} className="w-5 h-5" />
+                <span className="text-xs">{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </nav>
+      );
+    }
+
+    // Login Page
+    function Login({ onLogin }) {
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [showPassword, setShowPassword] = useState(false);
+      const [isLoading, setIsLoading] = useState(false);
+      const { login } = useAuth();
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsLoading(true);
+        await login(email, password);
+        setIsLoading(false);
+        onLogin();
+      };
+
+      return (
+        <div className="min-h-screen flex items-center justify-center px-4 py-12 relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0a] via-[#1a1a1a] to-[#0f0f0f]" />
+          <div className="absolute top-20 left-10 w-32 h-32 rounded-full bg-amber-500/5 blur-3xl" />
+          <div className="absolute bottom-20 right-10 w-40 h-40 rounded-full bg-emerald-500/5 blur-3xl" />
+          
+          <div className="relative z-10 w-full max-w-md">
+            <div className="flex justify-center mb-8">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-500 to-yellow-400 flex items-center justify-center animate-pulse-glow">
+                <Icon name="crown" className="w-10 h-10 text-black" />
+              </div>
+            </div>
+            
+            <div className="casino-card p-8">
+              <div className="text-center mb-6">
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-amber-400 to-yellow-300 bg-clip-text text-transparent">
+                  Welcome Back
+                </h1>
+                <p className="text-gray-400 mt-2">Sign in to your Poker Ledger account</p>
+              </div>
+              
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div>
+                  <label className="block text-gray-300 mb-2">Email</label>
+                  <div className="relative">
+                    <Icon name="mail" className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full pl-10 pr-4 py-3 bg-[#0a0a0a] border border-[#333] rounded-lg text-white placeholder:text-gray-600 focus:border-amber-500 focus:outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-gray-300 mb-2">Password</label>
+                  <div className="relative">
+                    <Icon name="lock" className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-10 pr-10 py-3 bg-[#0a0a0a] border border-[#333] rounded-lg text-white placeholder:text-gray-600 focus:border-amber-500 focus:outline-none"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                    >
+                      <Icon name={showPassword ? 'eyeOff' : 'eye'} className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+                
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full btn-gold disabled:opacity-50"
+                >
+                  {isLoading ? 'Signing in...' : 'Sign In'}
+                </button>
+              </form>
+              
+              <p className="mt-6 text-center text-gray-400 text-sm">
+                Demo: Use any email and password to login
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Dashboard
+    function Dashboard({ setView }) {
+      const { user } = useAuth();
+      const totalProfit = mockHistory.reduce((sum, s) => sum + s.profit, 0);
+      const activeSessions = mockSessions.filter(s => s.status === 'active');
+      const winRate = Math.round((mockHistory.filter(s => s.profit > 0).length / mockHistory.length) * 100);
+
+      return (
+        <div className="min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-8">
+              <h1 className="text-4xl font-bold text-white mb-2">
+                Welcome back, <span className="text-amber-400">{user?.username}</span>
+              </h1>
+              <p className="text-gray-400">Here's your poker performance overview</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="casino-card p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm mb-1">Total Profit/Loss</p>
+                    <p className={`text-3xl font-bold ${totalProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {totalProfit >= 0 ? '+' : ''}${totalProfit.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${totalProfit >= 0 ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
+                    <Icon name={totalProfit >= 0 ? 'trendingUp' : 'trendingDown'} className={`w-6 h-6 ${totalProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="casino-card p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm mb-1">Active Sessions</p>
+                    <p className="text-3xl font-bold text-white">{activeSessions.length}</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center">
+                    <Icon name="users" className="w-6 h-6 text-amber-400" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="casino-card p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm mb-1">Total Sessions</p>
+                    <p className="text-3xl font-bold text-white">{mockSessions.length}</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
+                    <Icon name="calendar" className="w-6 h-6 text-blue-400" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="casino-card p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm mb-1">Win Rate</p>
+                    <p className="text-3xl font-bold text-white">{winRate}%</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
+                    <Icon name="target" className="w-6 h-6 text-purple-400" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="casino-card p-6">
+                  <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <Icon name="plus" className="w-5 h-5 text-amber-400" />
+                    Quick Actions
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button onClick={() => setView('sessions')} className="btn-gold h-auto py-6 flex flex-col items-center gap-3">
+                      <Icon name="users" className="w-8 h-8" />
+                      <div className="text-center">
+                        <p className="font-bold text-lg">Join Session</p>
+                        <p className="text-sm text-black/70">Enter a game with code</p>
+                      </div>
+                    </button>
+                    <button onClick={() => setView('sessions')} className="btn-green h-auto py-6 flex flex-col items-center gap-3">
+                      <Icon name="dollar" className="w-8 h-8" />
+                      <div className="text-center">
+                        <p className="font-bold text-lg">Create Session</p>
+                        <p className="text-sm text-white/70">Start a new game</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="casino-card p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Icon name="calendar" className="w-5 h-5 text-amber-400" />
+                      Recent Sessions
+                    </h2>
+                    <button onClick={() => setView('sessions')} className="text-amber-400 hover:text-amber-300 text-sm">
+                      View All →
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {mockSessions.slice(0, 3).map(session => (
+                      <div key={session.id} className="flex items-center justify-between p-4 rounded-lg bg-[#0a0a0a] border border-[#333] hover:border-amber-500/50 cursor-pointer transition-all">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-3 h-3 rounded-full ${session.status === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-gray-500'}`} />
+                          <div>
+                            <p className="font-medium text-white">{session.name}</p>
+                            <p className="text-sm text-gray-500">{new Date(session.created_at).toLocaleDateString()}</p>
+                          </div>
+                        </div>
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${session.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                          {session.status === 'active' ? 'Active' : 'Closed'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="casino-card p-6">
+                  <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <Icon name="trophy" className="w-5 h-5 text-amber-400" />
+                    Session History
+                  </h2>
+                  <div className="space-y-3">
+                    {mockHistory.map(session => (
+                      <div key={session.id} className="flex items-center justify-between p-3 rounded-lg bg-[#0a0a0a] border border-[#333]">
+                        <div>
+                          <p className="font-medium text-white text-sm">{session.name}</p>
+                          <p className="text-xs text-gray-500">{session.date}</p>
+                        </div>
+                        <span className={`font-bold ${session.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {session.profit >= 0 ? '+' : ''}${session.profit}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="casino-card p-6 bg-gradient-to-br from-amber-500/10 to-yellow-500/5">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                      <Icon name="trophy" className="w-5 h-5 text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-white mb-1">Pro Tip</p>
+                      <p className="text-sm text-gray-400">
+                        Track your buy-ins and cash outs carefully. The key to profitable poker is knowing your numbers.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Sessions Page
+    function Sessions({ setView, setCurrentSession }) {
+      const [showCreate, setShowCreate] = useState(false);
+      const [showJoin, setShowJoin] = useState(false);
+      const [sessionName, setSessionName] = useState('');
+      const [joinCode, setJoinCode] = useState('');
+      const [copiedCode, setCopiedCode] = useState(null);
+
+      const copyCode = (code) => {
+        navigator.clipboard.writeText(code);
+        setCopiedCode(code);
+        setTimeout(() => setCopiedCode(null), 2000);
+      };
+
+      const activeSessions = mockSessions.filter(s => s.status === 'active');
+      const closedSessions = mockSessions.filter(s => s.status === 'closed');
+
+      return (
+        <div className="min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+              <div>
+                <h1 className="text-4xl font-bold text-white mb-2">Game Sessions</h1>
+                <p className="text-gray-400">Create or join poker sessions</p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setShowJoin(true)} className="px-4 py-2 border border-[#333] text-white rounded-lg hover:bg-white/5">
+                  <Icon name="login" className="w-4 h-4 inline mr-2" />
+                  Join Session
+                </button>
+                <button onClick={() => setShowCreate(true)} className="btn-gold">
+                  <Icon name="plus" className="w-4 h-4 inline mr-2" />
+                  Create Session
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-8">
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                Active Sessions
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {activeSessions.map(session => (
+                  <div key={session.id} className="casino-card p-6 hover:border-amber-500/50 cursor-pointer transition-all"
+                    onClick={() => { setCurrentSession(session); setView('game'); }}>
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg font-bold text-white hover:text-amber-400 transition-colors">{session.name}</h3>
+                        <p className="text-sm text-gray-500">{new Date(session.created_at).toLocaleDateString()}</p>
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                        <Icon name="users" className="w-5 h-5 text-emerald-400" />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-400">Join Code:</span>
+                        <code className="px-2 py-1 rounded bg-[#0a0a0a] text-amber-400 font-mono text-sm">{session.join_code}</code>
+                        <button onClick={e => { e.stopPropagation(); copyCode(session.join_code); }} className="p-1 rounded hover:bg-white/10">
+                          <Icon name={copiedCode === session.join_code ? 'check' : 'copy'} className={`w-4 h-4 ${copiedCode === session.join_code ? 'text-emerald-400' : 'text-gray-500'}`} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-500/20 text-amber-400 text-xs">
+                        <Icon name="crown" className="w-3 h-3" />
+                        Admin
+                      </span>
+                      <span className="px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs">Active</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {showCreate && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCreate(false)}>
+                <div className="casino-card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+                  <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                    <Icon name="plus" className="w-6 h-6 text-amber-400" />
+                    Create New Session
+                  </h2>
+                  <input
+                    type="text"
+                    value={sessionName}
+                    onChange={e => setSessionName(e.target.value)}
+                    placeholder="Friday Night Poker"
+                    className="w-full px-4 py-3 bg-[#0a0a0a] border border-[#333] rounded-lg text-white placeholder:text-gray-600 focus:border-amber-500 focus:outline-none mb-4"
+                  />
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowCreate(false)} className="flex-1 px-4 py-2 border border-[#333] text-white rounded-lg hover:bg-white/5">Cancel</button>
+                    <button onClick={() => setShowCreate(false)} className="flex-1 btn-gold">Create Session</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showJoin && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowJoin(false)}>
+                <div className="casino-card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+                  <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                    <Icon name="login" className="w-6 h-6 text-emerald-400" />
+                    Join Session
+                  </h2>
+                  <input
+                    type="text"
+                    value={joinCode}
+                    onChange={e => setJoinCode(e.target.value.toUpperCase())}
+                    placeholder="POKER123"
+                    className="w-full px-4 py-3 bg-[#0a0a0a] border border-[#333] rounded-lg text-white placeholder:text-gray-600 focus:border-emerald-500 focus:outline-none mb-4 font-mono text-lg tracking-wider"
+                  />
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowJoin(false)} className="flex-1 px-4 py-2 border border-[#333] text-white rounded-lg hover:bg-white/5">Cancel</button>
+                    <button onClick={() => setShowJoin(false)} className="flex-1 btn-green">Join Session</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Game Session Page
+    function GameSession({ session, setView }) {
+      const [showBuyIn, setShowBuyIn] = useState(false);
+      const [showCashOut, setShowCashOut] = useState(false);
+      const [showTransfer, setShowTransfer] = useState(false);
+      const [amount, setAmount] = useState('');
+      const [showSuccess, setShowSuccess] = useState(false);
+
+      const players = mockPlayers.filter(p => p.session_id === session.id);
+      const pendingTxns = mockTransactions.filter(t => t.session_id === session.id && t.status === 'pending');
+      const isAdmin = session.current_admin_id === 'user-1';
+
+      const handleBuyIn = () => {
+        setShowBuyIn(false);
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 2000);
+        setAmount('');
+      };
+
+      return (
+        <div className="min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
+              <div className="flex items-center gap-4">
+                <button onClick={() => setView('sessions')} className="p-2 border border-[#333] text-white rounded-lg hover:bg-white/5">
+                  <Icon name="arrowLeft" className="w-4 h-4" />
+                </button>
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-3xl font-bold text-white">{session.name}</h1>
+                    {isAdmin && (
+                      <span className="flex items-center gap-1 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-sm">
+                        <Icon name="crown" className="w-4 h-4" />
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-400 flex items-center gap-2">
+                    Join Code: <code className="text-amber-400 font-mono">{session.join_code}</code>
+                  </p>
+                </div>
+              </div>
+              
+              {isAdmin && (
+                <div className="flex gap-3">
+                  <button onClick={() => setShowTransfer(true)} className="px-4 py-2 border border-[#333] text-white rounded-lg hover:bg-white/5">
+                    <Icon name="rotate" className="w-4 h-4 inline mr-2" />
+                    Pass Dealer
+                  </button>
+                  <button onClick={() => setView('sessions')} className="px-4 py-2 border border-red-500/50 text-red-400 rounded-lg hover:bg-red-500/10">
+                    <Icon name="logout" className="w-4 h-4 inline mr-2" />
+                    Close Session
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {showSuccess && (
+              <div className="mb-6 p-4 rounded-lg bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 animate-pulse">
+                <div className="flex items-center gap-2">
+                  <Icon name="check" className="w-5 h-5" />
+                  <span>Buy-in request submitted! Waiting for admin approval.</span>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 space-y-6">
+                <div className="casino-card p-6">
+                  <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <Icon name="users" className="w-5 h-5 text-amber-400" />
+                    Players ({players.length})
+                  </h2>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-[#333]">
+                          <th className="text-left py-3 px-4 text-gray-400 font-medium">Player</th>
+                          <th className="text-right py-3 px-4 text-gray-400 font-medium">Buy-in</th>
+                          <th className="text-right py-3 px-4 text-gray-400 font-medium">Stack</th>
+                          <th className="text-right py-3 px-4 text-gray-400 font-medium">P/L</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {players.map(player => {
+                          const pl = player.current_stack - player.total_buyin;
+                          return (
+                            <tr key={player.user_id} className="border-b border-[#222]">
+                              <td className="py-4 px-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
+                                    <span className="text-white font-bold">{player.username[0]}</span>
+                                  </div>
+                                  <p className="font-medium text-white flex items-center gap-2">
+                                    {player.username}
+                                    {player.is_admin && <Icon name="crown" className="w-4 h-4 text-amber-400" />}
+                                  </p>
+                                </div>
+                              </td>
+                              <td className="text-right py-4 px-4 text-white">${player.total_buyin}</td>
+                              <td className="text-right py-4 px-4 text-white">${player.current_stack}</td>
+                              <td className={`text-right py-4 px-4 font-bold ${pl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                {pl >= 0 ? '+' : ''}${pl}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {isAdmin && pendingTxns.length > 0 && (
+                  <div className="casino-card p-6 border-l-4 border-l-amber-500">
+                    <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                      <Icon name="alert" className="w-5 h-5 text-amber-400" />
+                      Pending Approvals ({pendingTxns.length})
+                    </h2>
+                    <div className="space-y-3">
+                      {pendingTxns.map(txn => (
+                        <div key={txn.id} className="flex items-center justify-between p-4 rounded-lg bg-[#0a0a0a] border border-[#333]">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                              <Icon name="dollar" className="w-5 h-5 text-amber-400" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-white">{txn.username}</p>
+                              <p className="text-sm text-gray-500">Requested ${txn.amount} buy-in</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button className="p-2 border border-red-500/50 text-red-400 rounded-lg hover:bg-red-500/10">
+                              <Icon name="x" className="w-4 h-4" />
+                            </button>
+                            <button className="btn-green p-2">
+                              <Icon name="check" className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-6">
+                <div className="casino-card p-6">
+                  <h2 className="text-xl font-bold text-white mb-4">My Status</h2>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-4 rounded-lg bg-[#0a0a0a]">
+                        <p className="text-sm text-gray-400 mb-1">Total Buy-in</p>
+                        <p className="text-2xl font-bold text-white">$500</p>
+                      </div>
+                      <div className="p-4 rounded-lg bg-[#0a0a0a]">
+                        <p className="text-sm text-gray-400 mb-1">Current Stack</p>
+                        <p className="text-2xl font-bold text-white">$750</p>
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-lg bg-[#0a0a0a]">
+                      <p className="text-sm text-gray-400 mb-1">Profit/Loss</p>
+                      <p className="text-2xl font-bold text-emerald-400">+$250</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="casino-card p-6">
+                  <h2 className="text-xl font-bold text-white mb-4">Actions</h2>
+                  <div className="space-y-3">
+                    <button onClick={() => setShowBuyIn(true)} className="w-full btn-gold">
+                      <Icon name="dollar" className="w-4 h-4 inline mr-2" />
+                      Request Buy-in
+                    </button>
+                    <button onClick={() => setShowCashOut(true)} className="w-full px-4 py-3 border border-emerald-500/50 text-emerald-400 rounded-lg hover:bg-emerald-500/10">
+                      <Icon name="logout" className="w-4 h-4 inline mr-2" />
+                      Cash Out
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {showBuyIn && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowBuyIn(false)}>
+                <div className="casino-card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+                  <h2 className="text-2xl font-bold text-white mb-4">Request Buy-in</h2>
+                  <input
+                    type="number"
+                    value={amount}
+                    onChange={e => setAmount(e.target.value)}
+                    placeholder="100"
+                    className="w-full px-4 py-3 bg-[#0a0a0a] border border-[#333] rounded-lg text-white placeholder:text-gray-600 focus:border-amber-500 focus:outline-none mb-4 text-2xl font-bold"
+                    autoFocus
+                  />
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowBuyIn(false)} className="flex-1 px-4 py-2 border border-[#333] text-white rounded-lg hover:bg-white/5">Cancel</button>
+                    <button onClick={handleBuyIn} className="flex-1 btn-gold">Request</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showCashOut && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCashOut(false)}>
+                <div className="casino-card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+                  <h2 className="text-2xl font-bold text-white mb-4">Cash Out</h2>
+                  <input
+                    type="number"
+                    placeholder="500"
+                    className="w-full px-4 py-3 bg-[#0a0a0a] border border-[#333] rounded-lg text-white placeholder:text-gray-600 focus:border-emerald-500 focus:outline-none mb-4 text-2xl font-bold"
+                  />
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowCashOut(false)} className="flex-1 px-4 py-2 border border-[#333] text-white rounded-lg hover:bg-white/5">Cancel</button>
+                    <button onClick={() => setShowCashOut(false)} className="flex-1 btn-green">Cash Out</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showTransfer && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowTransfer(false)}>
+                <div className="casino-card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+                  <h2 className="text-2xl font-bold text-white mb-4">Pass the Dealer Button</h2>
+                  <p className="text-gray-400 mb-4">Select a player to transfer admin rights to</p>
+                  <div className="space-y-2 mb-4">
+                    {players.filter(p => !p.is_admin).map(player => (
+                      <label key={player.user_id} className="flex items-center gap-3 p-4 rounded-lg border border-[#333] cursor-pointer hover:border-[#444]">
+                        <input type="radio" name="newAdmin" className="hidden" />
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
+                          <span className="text-white font-bold">{player.username[0]}</span>
+                        </div>
+                        <span className="font-medium text-white">{player.username}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowTransfer(false)} className="flex-1 px-4 py-2 border border-[#333] text-white rounded-lg hover:bg-white/5">Cancel</button>
+                    <button onClick={() => setShowTransfer(false)} className="flex-1 btn-gold">Transfer Admin</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Analytics Page
+    function Analytics() {
+      const totalProfit = mockHistory.reduce((sum, s) => sum + s.profit, 0);
+      const winRate = Math.round((mockHistory.filter(s => s.profit > 0).length / mockHistory.length) * 100);
+      const biggestWin = Math.max(...mockHistory.map(s => s.profit));
+      const biggestLoss = Math.min(...mockHistory.map(s => s.profit));
+
+      return (
+        <div className="min-h-screen pt-20 pb-12 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="mb-8">
+              <h1 className="text-4xl font-bold text-white mb-2">Analytics</h1>
+              <p className="text-gray-400">Track your poker performance over time</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              <div className="casino-card p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm mb-1">Total Profit/Loss</p>
+                    <p className={`text-3xl font-bold ${totalProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {totalProfit >= 0 ? '+' : ''}${totalProfit}
+                    </p>
+                  </div>
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${totalProfit >= 0 ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
+                    <Icon name={totalProfit >= 0 ? 'trendingUp' : 'trendingDown'} className={`w-6 h-6 ${totalProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="casino-card p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm mb-1">Sessions Played</p>
+                    <p className="text-3xl font-bold text-white">{mockHistory.length}</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
+                    <Icon name="calendar" className="w-6 h-6 text-blue-400" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="casino-card p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm mb-1">Win Rate</p>
+                    <p className="text-3xl font-bold text-white">{winRate}%</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
+                    <Icon name="target" className="w-6 h-6 text-purple-400" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="casino-card p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-400 text-sm mb-1">Biggest Win</p>
+                    <p className="text-3xl font-bold text-emerald-400">+${biggestWin}</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center">
+                    <Icon name="trophy" className="w-6 h-6 text-amber-400" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="casino-card p-6">
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <Icon name="calendar" className="w-5 h-5 text-amber-400" />
+                Session History
+              </h2>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[#333]">
+                      <th className="text-left py-3 px-4 text-gray-400 font-medium">Session</th>
+                      <th className="text-left py-3 px-4 text-gray-400 font-medium">Date</th>
+                      <th className="text-right py-3 px-4 text-gray-400 font-medium">Result</th>
+                      <th className="text-right py-3 px-4 text-gray-400 font-medium">Profit/Loss</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mockHistory.map(session => (
+                      <tr key={session.id} className="border-b border-[#222]">
+                        <td className="py-4 px-4">
+                          <p className="font-medium text-white">{session.name}</p>
+                        </td>
+                        <td className="py-4 px-4 text-gray-400">{session.date}</td>
+                        <td className="text-right py-4 px-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${session.profit > 0 ? 'bg-emerald-500/20 text-emerald-400' : session.profit < 0 ? 'bg-red-500/20 text-red-400' : 'bg-gray-500/20 text-gray-400'}`}>
+                            {session.profit > 0 ? 'Win' : session.profit < 0 ? 'Loss' : 'Break Even'}
+                          </span>
+                        </td>
+                        <td className={`text-right py-4 px-4 font-bold ${session.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {session.profit >= 0 ? '+' : ''}${session.profit}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Main App
+    function App() {
+      const [view, setView] = useState('dashboard');
+      const [currentSession, setCurrentSession] = useState(null);
+      const { isAuthenticated } = useAuth();
+
+      if (!isAuthenticated) {
+        return <Login onLogin={() => setView('dashboard')} />;
+      }
+
+      return (
+        <div className="min-h-screen bg-[#0a0a0a]">
+          <Navigation currentView={view} setView={setView} />
+          {view === 'dashboard' && <Dashboard setView={setView} />}
+          {view === 'sessions' && <Sessions setView={setView} setCurrentSession={setCurrentSession} />}
+          {view === 'game' && currentSession && <GameSession session={currentSession} setView={setView} />}
+          {view === 'analytics' && <Analytics />}
+        </div>
+      );
+    }
+
+    // Render
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    );
+  </script>
+</body>
+</html>
