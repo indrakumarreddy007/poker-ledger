@@ -215,9 +215,7 @@ export default function GameSession() {
                   <tbody>
                     {players.map((player) => {
                       const pl =
-                        (player.cash_out_amount !== null
-                          ? player.cash_out_amount
-                          : player.current_stack) - player.total_buyin;
+                        (player.cash_out_amount ?? player.current_stack) - player.total_buyin;
                       return (
                         <tr key={player.user_id} className="border-b border-[#222]">
                           <td className="py-4 px-4">
@@ -238,9 +236,8 @@ export default function GameSession() {
                             ${player.cash_out_amount !== null ? player.cash_out_amount : player.current_stack}
                           </td>
                           <td
-                            className={`text-right py-4 px-4 font-bold ${
-                              pl >= 0 ? 'text-emerald-400' : 'text-red-400'
-                            }`}
+                            className={`text-right py-4 px-4 font-bold ${pl >= 0 ? 'text-emerald-400' : 'text-red-400'
+                              }`}
                           >
                             {pl >= 0 ? '+' : ''}${pl}
                           </td>
@@ -309,11 +306,10 @@ export default function GameSession() {
                   <div className="p-4 rounded-lg bg-[#0a0a0a]">
                     <p className="text-sm text-gray-400 mb-1">Profit/Loss</p>
                     <p
-                      className={`text-2xl font-bold ${
-                        currentPlayer.current_stack - currentPlayer.total_buyin >= 0
+                      className={`text-2xl font-bold ${currentPlayer.current_stack - currentPlayer.total_buyin >= 0
                           ? 'text-emerald-400'
                           : 'text-red-400'
-                      }`}
+                        }`}
                     >
                       {currentPlayer.current_stack - currentPlayer.total_buyin >= 0 ? '+' : ''}
                       ${currentPlayer.current_stack - currentPlayer.total_buyin}
